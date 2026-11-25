@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>60秒ファイター！ — 手描きお絵描き対戦アクション</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect x='4' y='4' width='56' height='56' rx='14' fill='%23ffde59' stroke='%2325211c' stroke-width='5'/%3E%3Ccircle cx='32' cy='21' r='9' fill='%23fffdf8' stroke='%2325211c' stroke-width='4'/%3E%3Cpath d='M32 30v15M18 37l14-4 14 4M22 54l10-10 10 10' fill='none' stroke='%23ef4444' stroke-width='5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@500;700;800;900&family=Yomogi&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./styles.css" />
+  <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+  <script type="module" src="./js/app.js"></script>
+</head>
+<body>
+  <!-- グローバル通知・スタンプ演出レイヤー -->
+  <div id="toast-container" class="toast-container" aria-live="polite"></div>
+  <div id="stamp-float-layer" class="stamp-float-layer" aria-hidden="true"></div>
+
+  <div id="app" class="app-shell">
+    <!-- ==================== 1. トップ画面 ==================== -->
+    <section id="screen-top" class="screen screen--active">
+      <div class="top-container">
+        <header class="hero-header">
+          <div class="hero-badge">✏️ 60秒お絵描き × 2D大乱闘！</div>
+          <h1 class="game-title">
+            <span class="title-accent-red">60秒</span><span class="title-main">ファイター！</span>
+          </h1>
+          <p class="hero-subtitle">描いたキャラの形と色で能力＆必殺技が決まる、手描きマルチ対戦アクション</p>
+        </header>
+
+        <div class="sketch-card top-card">
+          <div class="top-profile-row">
+            <div class="field-group">
+              <label for="input-player-name" class="field-label">プレイヤー名</label>
+              <input
+                id="input-player-name"
+                type="text"
+                class="sketch-input"
+                maxlength="12"
+                placeholder="なまえを入力（例：ラクガキ王）"
+                autocomplete="off"
+              />
+            </div>
+
+            <div class="field-group">
+              <span class="field-label">イメージカラー</span>
+              <div id="avatar-color-picker" class="color-swatch-row" role="radiogroup" aria-label="イメージカラー"></div>
+            </div>
+          </div>
+
+          <div class="top-actions-grid">
+            <button id="btn-create-room" class="sketch-btn sketch-btn--primary sketch-btn--lg" type="button">
+              <span class="btn-icon">🏠</span>
+              <span class="btn-text">
+                <strong>部屋を作る</strong>
+                <small>友達と最大4人でオンライン対戦</small>
+              </span>
+            </button>
+
+            <div class="join-box">
+              <label for="input-room-code" class="field-label">部屋コードで参加（6桁）</label>
+              <div class="join-input-row">
+                <input
+                  id="input-room-code"
+                  type="text"
+                  class="sketch-input room-code-input"
+                  inputmode="numeric"
+                  maxlength="6"
+                  placeholder="123456"
+                  autocomplete="off"
+                />
+                <button id="btn-join-room" class="sketch-btn sketch-btn--secondary" type="button">
+                  参加！
+                </button>
+              </div>
+            </div>
+
+            <button id="btn-cpu-mode" class="sketch-btn sketch-btn--accent sketch-btn--lg" type="button">
+              <span class="btn-icon">🤖</span>
+              <span class="btn-text">
+                <strong>CPU戦</strong>
+                <small>登録不要！ひとりで今すぐ遊ぶ</small>
+              </span>
+            </button>
+          </div>
+
+          <div id="top-status" class="top-status" role="status" aria-live="polite"></div>
+        </div>
+
+        <div class="how-to-strip">
+          <div class="how-step">
+            <span class="how-num">1</span>
+            <div>
+              <strong>60秒で描く</strong>
+              <p>お題にそって自由にファイターをお絵描き！</p>
+            </div>
+          </div>
+          <div class="how-step">
+            <span class="how-num">2</span>
+            <div>
+              <strong>自動で能力決定</strong>
+              <p>大きさ・翼・武器・色からステータスと必殺技を生成！</p>
+            </div>
+          </div>
+          <div class="how-step">
+            <span class="how-num">3</span>
+            <div>
+              <strong>大乱闘バトル</strong>
+              <p>ふっとばし＆アイテムで白熱の2Dバトル！</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== 2. ロビー画面 ==================== -->
+    <section id="screen-lobby" class="screen">
+      <header class="screen-header">
+        <div class="lobby-header-left">
+          <h2 class="screen-title">対戦ロビー</h2>
+          <div id="lobby-room-badge" class="room-code-badge">
+            <span class="room-code-label">部屋コード</span>
+            <strong id="lobby-room-code" class="room-code-digits">------</strong>
+            <button id="btn-copy-code" class="sketch-btn sketch-btn--sm" type="button" title="部屋コードをコピー">📋 コピー</button>
+          </div>
+          <span id="lobby-mode-pill" class="mode-pill">オンライン</span>
+        </div>
+        <div class="lobby-header-right">
+          <button id="btn-lobby-mute" class="sketch-btn sketch-btn--sm" type="button">🔊 効果音 ON</button>
+          <button id="btn-leave-lobby" class="sketch-btn sketch-btn--danger sketch-btn--sm" type="button">🚪 退出</button>
+        </div>
+      </header>
+
+      <div class="lobby-grid">
+        <!-- 左カラム：プレイヤー＆設定 -->
+        <div class="lobby-main-col">
+          <div class="sketch-card lobby-players-card">
+            <div class="card-head-row">
+              <h3>参加ファイター（<span id="lobby-player-count">1</span>/4）</h3>
+              <button id="btn-add-cpu" class="sketch-btn sketch-btn--accent sketch-btn--sm" type="button">＋ CPUを追加</button>
+            </div>
+            <div id="lobby-players" class="player-slots-grid"></div>
+          </div>
+
+          <div class="sketch-card lobby-settings-card">
+            <div class="card-head-row">
+              <h3>バトル設定</h3>
+              <span id="lobby-settings-hint" class="muted-note">ホストがルールを変更できます</span>
+            </div>
+
+            <div class="settings-form-grid">
+              <div class="setting-item">
+                <label for="select-battle-mode" class="field-label">対戦モード</label>
+                <select id="select-battle-mode" class="sketch-select">
+                  <option value="ffa">最大4人バトルロイヤル</option>
+                  <option value="1v1">1対1（タイマン）</option>
+                  <option value="2v2">2対2（チーム戦）</option>
+                </select>
+              </div>
+
+              <div class="setting-item">
+                <label for="select-rule-mode" class="field-label">勝敗ルール</label>
+                <select id="select-rule-mode" class="sketch-select">
+                  <option value="stock">ストック制（3機）</option>
+                  <option value="time">タイム制（2分）</option>
+                </select>
+              </div>
+
+              <div class="setting-item">
+                <label for="select-stage" class="field-label">ステージ</label>
+                <select id="select-stage" class="sketch-select"></select>
+                <small id="stage-desc-note" class="setting-subnote"></small>
+              </div>
+
+              <div class="setting-item">
+                <label for="select-theme" class="field-label">お絵描きのお題</label>
+                <select id="select-theme" class="sketch-select"></select>
+                <small id="theme-hint-note" class="setting-subnote"></small>
+              </div>
+
+              <div class="setting-item setting-item--full">
+                <label for="setting-cpu-level" class="field-label">🤖 CPUの強さ（一括設定）</label>
+                <select id="setting-cpu-level" class="sketch-select"></select>
+                <small id="cpu-level-desc-note" class="setting-subnote"></small>
+              </div>
+            </div>
+
+            <div class="lobby-start-bar">
+              <p id="lobby-start-hint" class="start-hint-text"></p>
+              <div class="lobby-start-buttons">
+                <button id="btn-toggle-ready" class="sketch-btn sketch-btn--secondary hidden" type="button">✅ 準備OK！</button>
+                <button id="btn-start-game" class="sketch-btn sketch-btn--primary sketch-btn--lg" type="button">🎨 お絵描きスタート！</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 右カラム：チャット＆スタンプ -->
+        <aside class="sketch-card lobby-chat-col">
+          <h3>💬 チャット＆スタンプ</h3>
+          <div id="lobby-chat-log" class="chat-log" aria-live="polite"></div>
+          <div id="lobby-stamp-bar" class="stamp-bar"></div>
+          <form id="lobby-chat-form" class="chat-input-row">
+            <input
+              id="lobby-chat-input"
+              type="text"
+              class="sketch-input"
+              maxlength="80"
+              placeholder="メッセージを入力..."
+              autocomplete="off"
+            />
+            <button class="sketch-btn sketch-btn--secondary sketch-btn--sm" type="submit">送信</button>
+          </form>
+        </aside>
+      </div>
+    </section>
+
+    <!-- ==================== 3. お絵描き画面 ==================== -->
+    <section id="screen-draw" class="screen">
+      <header class="draw-header">
+        <div class="theme-banner">
+          <span class="theme-tag">お題</span>
+          <strong id="draw-theme-label" class="theme-word">剣士</strong>
+          <span id="draw-theme-hint" class="theme-hint">大きな剣やマントを描くと攻撃UP！</span>
+        </div>
+
+        <div class="draw-timer-group">
+          <div id="draw-warning-banner" class="warning-pill hidden">⚡ あと10秒！</div>
+          <div id="draw-timer-box" class="timer-badge">
+            <span class="timer-label">のこり</span>
+            <strong id="draw-timer-value" class="timer-number">60</strong>
+            <span class="timer-unit">秒</span>
+          </div>
+          <span id="draw-done-progress" class="done-counter-pill">完了 0/2</span>
+        </div>
+      </header>
+
+      <div class="draw-workspace">
+        <!-- メインお絵描きエリア -->
+        <div class="sketch-card draw-main-card">
+          <div class="draw-canvas-stage">
+            <div id="draw-canvas-frame" class="draw-canvas-frame">
+              <canvas id="draw-canvas" width="320" height="320"></canvas>
+              <div id="draw-done-overlay" class="draw-done-overlay hidden">
+                <div class="done-stamp-badge">✨ 完成！</div>
+                <p>他のプレイヤーの完成を待っています...</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="draw-toolbar">
+            <div class="tool-row">
+              <div class="tool-group">
+                <button id="tool-pen" class="sketch-btn sketch-btn--sm tool-btn is-active" type="button">✏️ ペン</button>
+                <button id="tool-eraser" class="sketch-btn sketch-btn--sm tool-btn" type="button">🧽 消しゴム</button>
+              </div>
+
+              <div class="tool-group" role="group" aria-label="ペンの太さ">
+                <button class="sketch-btn sketch-btn--sm size-btn" data-size="4" type="button">細</button>
+                <button class="sketch-btn sketch-btn--sm size-btn is-active" data-size="8" type="button">中</button>
+                <button class="sketch-btn sketch-btn--sm size-btn" data-size="15" type="button">太</button>
+              </div>
+
+              <div class="tool-group">
+                <button id="btn-draw-undo" class="sketch-btn sketch-btn--sm" type="button">↩ やり直し</button>
+                <button id="btn-draw-clear" class="sketch-btn sketch-btn--danger sketch-btn--sm" type="button">🗑 全消し</button>
+              </div>
+            </div>
+
+            <div class="tool-row tool-row--palette">
+              <div id="draw-color-palette" class="draw-palette" role="radiogroup" aria-label="インクの色"></div>
+              <button id="btn-draw-done" class="sketch-btn sketch-btn--primary draw-done-btn" type="button">✅ 完成！</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- サイドパネル：リアルタイム対戦相手キャンバス＋ミニチャット -->
+        <aside class="draw-side-col">
+          <div class="sketch-card draw-previews-card">
+            <h3>👀 みんなのリアルタイムお絵描き</h3>
+            <div id="draw-previews" class="previews-grid"></div>
+          </div>
+
+          <div class="sketch-card draw-mini-chat-card">
+            <div id="draw-stamp-bar" class="stamp-bar stamp-bar--compact"></div>
+            <div id="draw-chat-mini" class="chat-log chat-log--mini" aria-live="polite"></div>
+            <form id="draw-chat-form" class="chat-input-row">
+              <input
+                id="draw-chat-input"
+                type="text"
+                class="sketch-input sketch-input--sm"
+                maxlength="60"
+                placeholder="ひとこと..."
+                autocomplete="off"
+              />
+              <button class="sketch-btn sketch-btn--secondary sketch-btn--sm" type="submit">送信</button>
+            </form>
+          </div>
+        </aside>
+      </div>
+    </section>
+
+    <!-- ==================== 4. 能力値表示画面 ==================== -->
+    <section id="screen-stats" class="screen">
+      <header class="screen-header">
+        <div>
+          <h2 class="screen-title">📊 ファイター能力発表！</h2>
+          <p class="screen-subtitle">描かれた線・形・色から自動でステータスと必殺技が決定されました！</p>
+        </div>
+        <div class="stats-header-actions">
+          <span id="stats-countdown" class="countdown-pill">まもなくバトル開始...</span>
+          <button id="btn-start-battle" class="sketch-btn sketch-btn--primary sketch-btn--lg" type="button">⚔️ バトル開始！</button>
+        </div>
+      </header>
+
+      <div id="stats-cards" class="stats-cards-grid"></div>
+    </section>
+
+    <!-- ==================== 5. バトル画面 ==================== -->
+    <section id="screen-battle" class="screen screen--battle">
+      <header class="battle-topbar">
+        <div class="battle-info-left">
+          <span id="battle-stage-pill" class="mode-pill">学校のノート</span>
+          <span id="battle-rule-pill" class="mode-pill mode-pill--alt">ストック 3機</span>
+        </div>
+
+        <div class="battle-center-timer">
+          <span id="battle-timer" class="battle-timer-digits">2:00</span>
+        </div>
+
+        <div class="battle-controls-right">
+          <button id="btn-toggle-touch" class="sketch-btn sketch-btn--sm" type="button">📱 タッチ操作</button>
+          <button id="btn-battle-mute" class="sketch-btn sketch-btn--sm" type="button">🔊 効果音 ON</button>
+          <button id="btn-battle-leave" class="sketch-btn sketch-btn--danger sketch-btn--sm" type="button">🚪 退出</button>
+        </div>
+      </header>
+
+      <!-- バトル中のイベント通知トースト -->
+      <div id="battle-toast" class="battle-event-toast hidden" role="status" aria-live="polite"></div>
+
+      <!-- メイン2Dバトルキャンバス -->
+      <div class="battle-stage-wrap">
+        <canvas id="battle-canvas" width="1200" height="700"></canvas>
+
+        <!-- タッチ操作オーバーレイ（スマホ・タブレット向け） -->
+        <div id="touch-controls" class="touch-controls hidden" aria-label="タッチ操作パッド">
+          <div class="touch-pad-left">
+            <span class="touch-spacer"></span>
+            <button class="touch-btn" data-action="up" type="button" aria-label="上">▲</button>
+            <span class="touch-spacer"></span>
+            <button class="touch-btn" data-action="left" type="button" aria-label="左">◀</button>
+            <button class="touch-btn" data-action="down" type="button" aria-label="下">▼</button>
+            <button class="touch-btn" data-action="right" type="button" aria-label="右">▶</button>
+          </div>
+          <div class="touch-pad-right">
+            <button class="touch-btn touch-btn--jump" data-action="jump" type="button">JUMP</button>
+            <button class="touch-btn touch-btn--atk" data-action="attack" type="button">通常</button>
+            <button class="touch-btn touch-btn--strong" data-action="strong" type="button">強</button>
+            <button class="touch-btn touch-btn--sp" data-action="special" type="button">必殺</button>
+            <button class="touch-btn touch-btn--recovery" data-action="recovery" type="button">↑復帰</button>
+            <button class="touch-btn touch-btn--guard" data-action="guard" type="button">ガード</button>
+            <button class="touch-btn touch-btn--grab" data-action="grab" type="button">つかみ</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- バトルHUD（ダメージ％・ストック・必殺ゲージ） -->
+      <div id="battle-hud-cards" class="battle-hud-grid"></div>
+
+      <!-- 下部バー：スタンプ＆キーボード操作ガイド -->
+      <footer class="battle-footer">
+        <div id="battle-stamp-bar" class="stamp-bar stamp-bar--battle"></div>
+        <div class="controls-legend" aria-label="キーボード操作方法">
+          <span><kbd>A</kbd>/<kbd>D</kbd>・<kbd>←</kbd>/<kbd>→</kbd> 移動</span>
+          <span><kbd>W</kbd>/<kbd>↑</kbd>/<kbd>Space</kbd> ジャンプ</span>
+          <span><kbd>J</kbd>/<kbd>Z</kbd> 通常</span>
+          <span><kbd>K</kbd>/<kbd>X</kbd> 強攻撃</span>
+          <span><kbd>L</kbd>/<kbd>C</kbd> 必殺技</span>
+          <span class="legend-recovery"><kbd>↑</kbd>+<kbd>L</kbd>/<kbd>C</kbd> 復帰ジャンプ</span>
+          <span><kbd>S</kbd>/<kbd>↓</kbd>/<kbd>Shift</kbd> ガード</span>
+          <span><kbd>U</kbd>/<kbd>E</kbd> つかみ</span>
+          <span class="legend-tip">🧗 ステージ端で崖つかまり</span>
+        </div>
+      </footer>
+    </section>
+
+    <!-- ==================== 6. リザルト画面 ==================== -->
+    <section id="screen-result" class="screen">
+      <div class="result-container">
+        <header class="result-header">
+          <div class="result-ribbon">🏆 BATTLE RESULT 🏆</div>
+          <h2 id="result-title" class="result-winner-title">優勝！</h2>
+        </header>
+
+        <div class="result-body-grid">
+          <div id="result-winner-showcase" class="sketch-card winner-showcase-card"></div>
+
+          <div class="sketch-card ranking-card">
+            <h3>🎖 対戦ランキング</h3>
+            <div class="ranking-table-wrap">
+              <table class="ranking-table">
+                <thead>
+                  <tr>
+                    <th>順位</th>
+                    <th>ファイター</th>
+                    <th>KO</th>
+                    <th>落下</th>
+                    <th>与ダメージ</th>
+                  </tr>
+                </thead>
+                <tbody id="result-ranking-body"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <p id="result-client-note" class="muted-note center-note hidden">ホストの次の選択を待っています...</p>
+
+        <div id="result-actions" class="result-actions-bar">
+          <button id="btn-result-redraw" class="sketch-btn sketch-btn--primary sketch-btn--lg" type="button">🎨 もう一度描いて対戦</button>
+          <button id="btn-result-rematch" class="sketch-btn sketch-btn--secondary sketch-btn--lg" type="button">⚔️ 同じキャラで再戦</button>
+          <button id="btn-result-lobby" class="sketch-btn sketch-btn--accent" type="button">🏠 ロビーへ戻る</button>
+          <button id="btn-result-top" class="sketch-btn" type="button">↩ トップへ戻る</button>
+        </div>
+      </div>
+    </section>
+  </div>
+</body>
+</html>
